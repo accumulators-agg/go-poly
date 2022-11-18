@@ -1,3 +1,4 @@
+//go:build !bignum_pure && !bignum_hol256 && !bignum_kilic && !bignum_hbls
 // +build !bignum_pure,!bignum_hol256,!bignum_kilic,!bignum_hbls
 
 package ff
@@ -5,18 +6,17 @@ package ff
 import (
 	"fmt"
 	"strings"
-	"unsafe"
 
 	gmcl "github.com/alinush/go-mcl"
 )
 
-var ZERO_G1 G1Point
+var ZERO_G1 gmcl.G1
 
-var GenG1 G1Point
-var GenG2 G2Point
+var GenG1 gmcl.G1
+var GenG2 gmcl.G2
 
-var ZeroG1 G1Point
-var ZeroG2 G2Point
+var ZeroG1 gmcl.G1
+var ZeroG2 gmcl.G2
 
 // Herumi BLS doesn't offer these points to us, so we have to work around it by declaring them ourselves.
 func initG1G2() {
@@ -43,122 +43,38 @@ func initG1G2() {
 	ZeroG2.Z.D[1].SetInt64(0)
 }
 
-// TODO types file, swap BLS with build args
-type G1Point gmcl.G1
-
-func ClearG1(x *G1Point) {
-	(*gmcl.G1)(x).Clear()
-}
-
-func CopyG1(dst *G1Point, v *G1Point) {
+func CopyG1(dst *gmcl.G1, v *gmcl.G1) {
 	*dst = *v
 }
 
-func MulG1(dst *G1Point, a *G1Point, b *Fr) {
-	gmcl.G1Mul((*gmcl.G1)(dst), (*gmcl.G1)(a), (*gmcl.Fr)(b))
+func StrG1(v *gmcl.G1) string {
+	return (v).GetString(10)
 }
 
-func AddG1(dst *G1Point, a *G1Point, b *G1Point) {
-	gmcl.G1Add((*gmcl.G1)(dst), (*gmcl.G1)(a), (*gmcl.G1)(b))
-}
-
-func SubG1(dst *G1Point, a *G1Point, b *G1Point) {
-	gmcl.G1Sub((*gmcl.G1)(dst), (*gmcl.G1)(a), (*gmcl.G1)(b))
-}
-
-func StrG1(v *G1Point) string {
-	return (*gmcl.G1)(v).GetString(10)
-}
-
-func NegG1(dst *G1Point) {
-	// in-place should be safe here (TODO double check)
-	gmcl.G1Neg((*gmcl.G1)(dst), (*gmcl.G1)(dst))
-}
-
-type G2Point gmcl.G2
-
-func ClearG2(x *G2Point) {
-	(*gmcl.G2)(x).Clear()
-}
-
-func CopyG2(dst *G2Point, v *G2Point) {
-	*dst = *v
-}
-
-func MulG2(dst *G2Point, a *G2Point, b *Fr) {
-	gmcl.G2Mul((*gmcl.G2)(dst), (*gmcl.G2)(a), (*gmcl.Fr)(b))
-}
-
-func AddG2(dst *G2Point, a *G2Point, b *G2Point) {
-	gmcl.G2Add((*gmcl.G2)(dst), (*gmcl.G2)(a), (*gmcl.G2)(b))
-}
-
-func SubG2(dst *G2Point, a *G2Point, b *G2Point) {
-	gmcl.G2Sub((*gmcl.G2)(dst), (*gmcl.G2)(a), (*gmcl.G2)(b))
-}
-
-func NegG2(dst *G2Point) {
-	// in-place should be safe here (TODO double check)
-	gmcl.G2Neg((*gmcl.G2)(dst), (*gmcl.G2)(dst))
-}
-
-func StrG2(v *G2Point) string {
-	return (*gmcl.G2)(v).GetString(10)
-}
-
-func EqualG1(a *G1Point, b *G1Point) bool {
-	return (*gmcl.G1)(a).IsEqual((*gmcl.G1)(b))
-}
-
-func EqualG2(a *G2Point, b *G2Point) bool {
-	return (*gmcl.G2)(a).IsEqual((*gmcl.G2)(b))
-}
-
-func LinCombG1(numbers []G1Point, factors []Fr) *G1Point {
-	var out G1Point
-	// We're just using unsafe to cast elements that are an alias anyway, no problem.
-	// Go doesn't let us do the cast otherwise without copy.
-	gmcl.G1MulVec((*gmcl.G1)(&out), *(*[]gmcl.G1)(unsafe.Pointer(&numbers)), *(*[]gmcl.Fr)(unsafe.Pointer(&factors)))
-	return &out
-}
-
-func LinCombG2(numbers []G2Point, factors []Fr) *G2Point {
-	var out G2Point
-	// We're just using unsafe to cast elements that are an alias anyway, no problem.
-	// Go doesn't let us do the cast otherwise without copy.
-	gmcl.G2MulVec((*gmcl.G2)(&out), *(*[]gmcl.G2)(unsafe.Pointer(&numbers)), *(*[]gmcl.Fr)(unsafe.Pointer(&factors)))
-	return &out
+func StrG2(v *gmcl.G2) string {
+	return (v).GetString(10)
 }
 
 // e(a1^(-1), a2) * e(b1,  b2) = 1_T
-func PairingsVerify(a1 *G1Point, a2 *G2Point, b1 *G1Point, b2 *G2Point) bool {
+func PairingsVerify(a1 *gmcl.G1, a2 *gmcl.G2, b1 *gmcl.G1, b2 *gmcl.G2) bool {
+
+	var a1Inv gmcl.G1
+	a1Inv.Clear()
+	gmcl.G1Sub(&a1Inv, &a1Inv, a1)
+
+	P := []gmcl.G1{a1Inv, *b1}
+	Q := []gmcl.G2{*a2, *b2}
+
 	var tmp gmcl.GT
-	gmcl.Pairing(&tmp, (*gmcl.G1)(a1), (*gmcl.G2)(a2))
-	//fmt.Println("tmp", tmp.GetString(10))
-	var tmp2 gmcl.GT
-	gmcl.Pairing(&tmp2, (*gmcl.G1)(b1), (*gmcl.G2)(b2))
 
-	// invert left pairing
-	var tmp3 gmcl.GT
-	gmcl.GTInv(&tmp3, &tmp)
+	gmcl.MillerLoopVec(&tmp, P, Q)
+	gmcl.FinalExp(&tmp, &tmp)
 
-	// multiply the two
-	var tmp4 gmcl.GT
-	gmcl.GTMul(&tmp4, &tmp3, &tmp2)
+	return tmp.IsOne()
 
-	// final exp.
-	var tmp5 gmcl.GT
-	gmcl.FinalExp(&tmp5, &tmp4)
-
-	// = 1_T
-	return tmp5.IsOne()
-
-	// TODO, alternatively use the equal check (faster or slower?):
-	////fmt.Println("tmp2", tmp2.GetString(10))
-	//return tmp.IsEqual(&tmp2)
 }
 
-func DebugG1s(msg string, values []G1Point) {
+func DebugG1s(msg string, values []gmcl.G1) {
 	var out strings.Builder
 	for i := range values {
 		out.WriteString(fmt.Sprintf("%s %d: %s\n", msg, i, StrG1(&values[i])))

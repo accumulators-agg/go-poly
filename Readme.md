@@ -19,4 +19,6 @@ Fork of the code from [go-kzg](github.com/protolambda/go-kzg). Currently works w
 
 ```bash
 go test ./... -bench=. -run=^a  -timeout 240m
+time go test ./... -bench=. -run=^a -benchtime=100x -timeout 240m
+time go test ./... -bench=BenchmarkPoly -run=^a -benchtime=100x  -timeout 240m
 ```

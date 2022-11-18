@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"math/bits"
 
-	"github.com/sshravan/go-poly/ff"
+	"github.com/accumulators-agg/go-poly/ff"
+	gmcl "github.com/alinush/go-mcl"
 )
 
 // Returns true if polynomial A is a zero polynomial.
-func IsPolyZero(a []ff.Fr) bool {
+func IsPolyZero(a []gmcl.Fr) bool {
 
 	n := len(a)
 	if n == 0 {
@@ -17,15 +18,40 @@ func IsPolyZero(a []ff.Fr) bool {
 	var flag bool
 	flag = true
 	for i := 0; i < n && flag == true; i++ {
-		flag = flag && ff.EqualZero(&a[i])
+		flag = flag && a[i].IsZero()
 	}
 	return flag
 }
 
-//  Removes extraneous zero entries from in vector representation of polynomial.
-//  Example - Degree-4 Polynomial: [0, 1, 2, 3, 4, 0, 0, 0, 0] -> [0, 1, 2, 3, 4]
-//  Note: Simplest condensed form is a zero polynomial of vector form: [0]
-func PolyCondense(a []ff.Fr) []ff.Fr {
+// Returns true if polynomial A is a equal to polynomial B.
+func IsPolyEqual(a []gmcl.Fr, b []gmcl.Fr) bool {
+
+	p := PolyCondense(a)
+	q := PolyCondense(b)
+
+	if len(p) == 0 {
+		panic("IsPolyEqual: P is zero.")
+	}
+	if len(q) == 0 {
+		panic("IsPolyEqual: Q is zero.")
+	}
+	if len(p) != len(q) {
+		return false
+	}
+
+	var flag bool
+	flag = true
+
+	for i := 0; i < len(p) && flag == true; i++ {
+		flag = flag && p[i] == q[i]
+	}
+	return flag
+}
+
+// Removes extraneous zero entries from in vector representation of polynomial.
+// Example - Degree-4 Polynomial: [0, 1, 2, 3, 4, 0, 0, 0, 0] -> [0, 1, 2, 3, 4]
+// Note: Simplest condensed form is a zero polynomial of vector form: [0]
+func PolyCondense(a []gmcl.Fr) []gmcl.Fr {
 	n := len(a)
 	if n == 0 {
 		panic("PolyCondense Error")
@@ -33,7 +59,7 @@ func PolyCondense(a []ff.Fr) []ff.Fr {
 
 	i := n
 	for i > 1 {
-		if ff.EqualZero(&a[i-1]) != true {
+		if a[i-1].IsZero() != true {
 			break
 		}
 		i--
@@ -42,7 +68,7 @@ func PolyCondense(a []ff.Fr) []ff.Fr {
 }
 
 // Computes the standard polynomial addition, polynomial A + polynomial B, and stores result in polynomial C.
-func PolyAdd(a []ff.Fr, b []ff.Fr) []ff.Fr {
+func PolyAdd(a []gmcl.Fr, b []gmcl.Fr) []gmcl.Fr {
 
 	if IsPolyZero(a) {
 		return PolyCondense(b)
@@ -55,14 +81,14 @@ func PolyAdd(a []ff.Fr, b []ff.Fr) []ff.Fr {
 	aLen := len(a)
 	bLen := len(b)
 	n := ff.Max(aLen, bLen)
-	c := make([]ff.Fr, n, n)
+	c := make([]gmcl.Fr, n, n)
 
 	for i := 0; i < n; i++ {
 		if i < aLen {
-			ff.AddModFr(&c[i], &c[i], &a[i])
+			gmcl.FrAdd(&c[i], &c[i], &a[i])
 		}
 		if i < bLen {
-			ff.AddModFr(&c[i], &c[i], &b[i])
+			gmcl.FrAdd(&c[i], &c[i], &b[i])
 		}
 	}
 	c = PolyCondense(c)
@@ -70,7 +96,7 @@ func PolyAdd(a []ff.Fr, b []ff.Fr) []ff.Fr {
 }
 
 // Computes the standard polynomial subtraction, polynomial A - polynomial B, and stores result in polynomial C.
-func PolySub(a []ff.Fr, b []ff.Fr) []ff.Fr {
+func PolySub(a []gmcl.Fr, b []gmcl.Fr) []gmcl.Fr {
 
 	if IsPolyZero(b) {
 		return a
@@ -79,14 +105,14 @@ func PolySub(a []ff.Fr, b []ff.Fr) []ff.Fr {
 	aLen := len(a)
 	bLen := len(b)
 	n := ff.Max(aLen, bLen)
-	c := make([]ff.Fr, n, n)
+	c := make([]gmcl.Fr, n, n)
 
 	for i := 0; i < n; i++ {
 		if i < aLen {
-			ff.AddModFr(&c[i], &c[i], &a[i])
+			gmcl.FrAdd(&c[i], &c[i], &a[i])
 		}
 		if i < bLen {
-			ff.SubModFr(&c[i], &c[i], &b[i])
+			gmcl.FrSub(&c[i], &c[i], &b[i])
 		}
 	}
 	c = PolyCondense(c)
@@ -94,27 +120,27 @@ func PolySub(a []ff.Fr, b []ff.Fr) []ff.Fr {
 }
 
 // Compute a(x) * b(x)
-func PolyMul(a []ff.Fr, b []ff.Fr) []ff.Fr {
+func PolyMul(a []gmcl.Fr, b []gmcl.Fr) []gmcl.Fr {
 	if IsPolyZero(a) || IsPolyZero(b) {
-		return []ff.Fr{ff.ZERO}
+		return []gmcl.Fr{ff.ZERO}
 	}
 
 	aLen := len(a)
 	bLen := len(b)
 	if aLen == bLen && aLen == 1 {
-		c := make([]ff.Fr, 1, 1)
-		ff.MulModFr(&c[0], &a[0], &b[0])
+		c := make([]gmcl.Fr, 1, 1)
+		gmcl.FrMul(&c[0], &a[0], &b[0])
 		return c
 	}
 	n := uint64(2 * ff.Max(aLen, bLen))
 	n = nextPowOf2(n)
 
-	var padding []ff.Fr
+	var padding []gmcl.Fr
 
-	padding = make([]ff.Fr, n-uint64(aLen), n-uint64(aLen))
+	padding = make([]gmcl.Fr, n-uint64(aLen), n-uint64(aLen))
 	a = append(a, padding...)
 
-	padding = make([]ff.Fr, n-uint64(bLen), n-uint64(bLen))
+	padding = make([]gmcl.Fr, n-uint64(bLen), n-uint64(bLen))
 	b = append(b, padding...)
 
 	l := uint8(bits.Len64(n)) - 1 // n = 8 => 3 or 4?
@@ -132,39 +158,40 @@ func PolyMul(a []ff.Fr, b []ff.Fr) []ff.Fr {
 // Builds the polynomial from its roots
 // (x - a_1)(x - a_2)(x - a_3)(x - a_4)(x - a_5)(1)(1)(1)
 // Need not be a power of two
-func PolyTree(a []ff.Fr) []ff.Fr {
+func PolyTree(a []gmcl.Fr) []gmcl.Fr {
 
 	n := uint64(len(a))
 	aLen := n
 	n = nextPowOf2(n)
 
-	var padding []ff.Fr
+	var padding []gmcl.Fr
 
-	padding = make([]ff.Fr, n-aLen, n-aLen)
+	padding = make([]gmcl.Fr, n-aLen, n-aLen)
 	a = append(a, padding...)
 
 	l := uint8(bits.Len64(n)) - 1
 
-	var M [][]ff.Fr
+	var M [][]gmcl.Fr
 
-	M = make([][]ff.Fr, n, n)
+	M = make([][]gmcl.Fr, n, n)
 	for j := uint64(0); j < n; j++ {
 		if j < aLen {
-			M[j] = make([]ff.Fr, 2)
-			ff.NegModFr(&M[j][0], &a[j])
+			M[j] = make([]gmcl.Fr, 2)
+			gmcl.FrNeg(&M[j][0], &a[j])
 			ff.IntAsFr(&M[j][1], 1)
 		} else {
-			M[j] = []ff.Fr{ff.ONE}
+			M[j] = make([]gmcl.Fr, 1)
+			M[j][0].SetInt64(1)
 		}
 	}
 
-	var x []ff.Fr
-	var y []ff.Fr
+	var x []gmcl.Fr
+	var y []gmcl.Fr
 	var index int64
 	index = 0
 	for i := uint8(1); i <= l; i++ {
 		L := uint64(1) << (l - i)
-		m := make([][]ff.Fr, L, L)
+		m := make([][]gmcl.Fr, L, L)
 		for j := uint64(0); j < L; j++ {
 			x = M[index]
 			index++
@@ -179,37 +206,37 @@ func PolyTree(a []ff.Fr) []ff.Fr {
 }
 
 // Invert the divisor, then multiply
-func polyFactorDiv(dst *ff.Fr, a *ff.Fr, b *ff.Fr) {
+func polyFactorDiv(dst *gmcl.Fr, a *gmcl.Fr, b *gmcl.Fr) {
 	// TODO: use divmod instead.
-	var tmp ff.Fr
-	ff.InvModFr(&tmp, b)
-	ff.MulModFr(dst, &tmp, a)
+	var tmp gmcl.Fr
+	gmcl.FrInv(&tmp, b)
+	gmcl.FrMul(dst, &tmp, a)
 }
 
 // Long polynomial division for two polynomials in coefficient form
 // Need to check divide by zero
-func PolyLongDiv(A []ff.Fr, B []ff.Fr) []ff.Fr {
+func PolyLongDiv(A []gmcl.Fr, B []gmcl.Fr) []gmcl.Fr {
 	if IsPolyZero(B) == true {
 		panic("PolyLongDiv: Cannot divide by zero polynomial.")
 	}
-	a := make([]ff.Fr, len(A), len(A))
+	a := make([]gmcl.Fr, len(A), len(A))
 	for i := 0; i < len(a); i++ {
 		ff.CopyFr(&a[i], &A[i])
 	}
 	aPos := len(a) - 1
 	bPos := len(B) - 1
 	diff := aPos - bPos
-	out := make([]ff.Fr, diff+1, diff+1)
+	out := make([]gmcl.Fr, diff+1, diff+1)
 	for diff >= 0 {
 		quot := &out[diff]
 		polyFactorDiv(quot, &a[aPos], &B[bPos])
-		var tmp, tmp2 ff.Fr
+		var tmp, tmp2 gmcl.Fr
 		for i := bPos; i >= 0; i-- {
 			// In steps: a[diff + i] -= b[i] * quot
 			// tmp =  b[i] * quot
-			ff.MulModFr(&tmp, quot, &B[i])
+			gmcl.FrMul(&tmp, quot, &B[i])
 			// tmp2 = a[diff + i] - tmp
-			ff.SubModFr(&tmp2, &a[diff+i], &tmp)
+			gmcl.FrSub(&tmp2, &a[diff+i], &tmp)
 			// a[diff + i] = tmp2
 			ff.CopyFr(&a[diff+i], &tmp2)
 		}
@@ -220,7 +247,7 @@ func PolyLongDiv(A []ff.Fr, B []ff.Fr) []ff.Fr {
 }
 
 // Computes q(x) and r(x) s.t. a(x) = q(x) * b(x) + r(x)
-func PolyDiv(A []ff.Fr, B []ff.Fr) ([]ff.Fr, []ff.Fr) {
+func PolyDiv(A []gmcl.Fr, B []gmcl.Fr) ([]gmcl.Fr, []gmcl.Fr) {
 	if IsPolyZero(B) == true {
 		panic("PolyDiv: Cannot divide by zero polynomial.")
 	}
@@ -229,30 +256,31 @@ func PolyDiv(A []ff.Fr, B []ff.Fr) ([]ff.Fr, []ff.Fr) {
 		panic("PolyDiv: Deg(B) should be <= Ded(A)")
 	}
 
-	a := make([]ff.Fr, len(A), len(A))
+	a := make([]gmcl.Fr, len(A), len(A))
 	for i := 0; i < len(a); i++ {
 		ff.CopyFr(&a[i], &A[i])
 	}
 	aPos := len(a) - 1
 	bPos := len(B) - 1
 	diff := aPos - bPos
-	out := make([]ff.Fr, diff+1, diff+1)
+	out := make([]gmcl.Fr, diff+1, diff+1)
 	for diff >= 0 {
 		quot := &out[diff]
 		polyFactorDiv(quot, &a[aPos], &B[bPos])
-		var tmp, tmp2 ff.Fr
+		var tmp, tmp2 gmcl.Fr
 		for i := bPos; i >= 0; i-- {
 			// In steps: a[diff + i] -= b[i] * quot
 			// tmp =  b[i] * quot
-			ff.MulModFr(&tmp, quot, &B[i])
+			gmcl.FrMul(&tmp, quot, &B[i])
 			// tmp2 = a[diff + i] - tmp
-			ff.SubModFr(&tmp2, &a[diff+i], &tmp)
+			gmcl.FrSub(&tmp2, &a[diff+i], &tmp)
 			// a[diff + i] = tmp2
 			ff.CopyFr(&a[diff+i], &tmp2)
 		}
 		aPos -= 1
 		diff -= 1
 	}
+	out = PolyCondense(out)
 	a = PolyCondense(a)
 	return out, a
 }
@@ -262,32 +290,32 @@ func PolyDiv(A []ff.Fr, B []ff.Fr) ([]ff.Fr, []ff.Fr) {
 // This [paper](https://arxiv.org/pdf/2002.10304.pdf) claims there is a faster way to do this
 // Page 10 under interpolation
 // Not sure how it is different from doing subproduct tree on M'(x)
-func PolyDifferentiate(a []ff.Fr) []ff.Fr {
+func PolyDifferentiate(a []gmcl.Fr) []gmcl.Fr {
 	n := int64(len(a))
 	if n == 0 {
 		panic("PolyDifferentiate: Input is empty")
 	}
 	if n == 1 {
-		return make([]ff.Fr, 1)
+		return make([]gmcl.Fr, 1)
 	}
-	c := make([]ff.Fr, n, n)
-	var temp ff.Fr
+	c := make([]gmcl.Fr, n, n)
+	var temp gmcl.Fr
 	for i := int64(1); i < n; i++ {
 		ff.IntAsFr(&temp, i)
-		ff.MulModFr(&c[i], &a[i], &temp)
+		gmcl.FrMul(&c[i], &a[i], &temp)
 	}
 	return c[1:]
 }
 
 // Extended GCG: Computes u(x) and v(x) s.t. u(x) * a(x) + v(x) * b(x) = g(x)
-func xGCD(a []ff.Fr, b []ff.Fr) (g []ff.Fr, u []ff.Fr, v []ff.Fr) {
+func XGCD(a []gmcl.Fr, b []gmcl.Fr) (g []gmcl.Fr, u []gmcl.Fr, v []gmcl.Fr) {
 	return xGCD2(a, b)
 }
 
 // Computes Extended GCD using pseudocode **#1** here:
 // https://en.wikipedia.org/w/index.php?title=Extended_Euclidean_algorithm&oldid=1003613686
 // a * u + b * v = g
-func xGCD1(a []ff.Fr, b []ff.Fr) (g []ff.Fr, u []ff.Fr, v []ff.Fr) {
+func xGCD1(a []gmcl.Fr, b []gmcl.Fr) (g []gmcl.Fr, u []gmcl.Fr, v []gmcl.Fr) {
 
 	if len(b) > len(a) {
 		g, v, u := xGCD1(b, a)
@@ -295,8 +323,8 @@ func xGCD1(a []ff.Fr, b []ff.Fr) (g []ff.Fr, u []ff.Fr, v []ff.Fr) {
 	}
 
 	old_r, r := a, b
-	old_s, s := []ff.Fr{ff.ONE}, []ff.Fr{ff.ZERO}
-	old_t, t := []ff.Fr{ff.ZERO}, []ff.Fr{ff.ONE}
+	old_s, s := []gmcl.Fr{ff.ONE}, []gmcl.Fr{ff.ZERO}
+	old_t, t := []gmcl.Fr{ff.ZERO}, []gmcl.Fr{ff.ONE}
 
 	for IsPolyZero(r) == false {
 		quotient, remainder := PolyDiv(old_r, r)
@@ -314,14 +342,14 @@ func xGCD1(a []ff.Fr, b []ff.Fr) (g []ff.Fr, u []ff.Fr, v []ff.Fr) {
 // Computes Extended GCD using pseudocode **#2** here:
 // https://en.wikipedia.org/w/index.php?title=Extended_Euclidean_algorithm&oldid=1003613686
 // a * u + b * v = g
-func xGCD2(a []ff.Fr, b []ff.Fr) (g []ff.Fr, u []ff.Fr, v []ff.Fr) {
+func xGCD2(a []gmcl.Fr, b []gmcl.Fr) (g []gmcl.Fr, u []gmcl.Fr, v []gmcl.Fr) {
 
 	if len(b) > len(a) {
 		g, v, u := xGCD2(b, a)
 		return g, u, v
 	} else {
-		s := []ff.Fr{ff.ZERO}
-		old_s := []ff.Fr{ff.ONE}
+		s := []gmcl.Fr{ff.ZERO}
+		old_s := []gmcl.Fr{ff.ONE}
 
 		r := b
 		old_r := a
@@ -332,11 +360,11 @@ func xGCD2(a []ff.Fr, b []ff.Fr) (g []ff.Fr, u []ff.Fr, v []ff.Fr) {
 			old_s, s = s, PolySub(old_s, PolyMul(quotient, s))
 		}
 
-		var bezout_t []ff.Fr
+		var bezout_t []gmcl.Fr
 		if IsPolyZero(b) == false {
 			bezout_t, _ = PolyDiv(PolySub(old_r, PolyMul(old_s, a)), b)
 		} else {
-			bezout_t = []ff.Fr{ff.ZERO}
+			bezout_t = []gmcl.Fr{ff.ZERO}
 		}
 		return old_r, old_s, bezout_t
 	}
@@ -345,7 +373,11 @@ func xGCD2(a []ff.Fr, b []ff.Fr) (g []ff.Fr, u []ff.Fr, v []ff.Fr) {
 // SubProdTree
 // Needs to be power of two
 // (x - a_1)(x - a_2)(x - a_3)(x - a_4)(x - a_5)(x - a_6)(x - a_7)(x - a_8)
-func SubProductTree(a []ff.Fr) [][][]ff.Fr {
+// Index 0 has N elements
+// Index 1 has N/2 elements
+// Index 2 hash N/4 elements
+// Thus this is an inverted tree.
+func SubProductTree(a []gmcl.Fr) [][][]gmcl.Fr {
 
 	n := uint64(len(a))
 
@@ -355,22 +387,22 @@ func SubProductTree(a []ff.Fr) [][][]ff.Fr {
 
 	l := uint8(bits.Len64(n)) - 1
 	// fmt.Println(l)
-	var M [][][]ff.Fr
-	M = make([][][]ff.Fr, l+1, l+1)
-	M[0] = make([][]ff.Fr, n, n)
+	var M [][][]gmcl.Fr
+	M = make([][][]gmcl.Fr, l+1, l+1)
+	M[0] = make([][]gmcl.Fr, n, n)
 	for j := uint64(0); j < n; j++ {
-		M[0][j] = make([]ff.Fr, 2)
-		ff.NegModFr(&M[0][j][0], &a[j])
+		M[0][j] = make([]gmcl.Fr, 2)
+		gmcl.FrNeg(&M[0][j][0], &a[j])
 		ff.IntAsFr(&M[0][j][1], 1)
 	}
 
-	var x []ff.Fr
-	var y []ff.Fr
+	var x []gmcl.Fr
+	var y []gmcl.Fr
 	var index int64
 	index = 0
 	for i := uint8(1); i <= l; i++ {
 		L := uint64(1) << (l - i)
-		M[i] = make([][]ff.Fr, L, L)
+		M[i] = make([][]gmcl.Fr, L, L)
 		for j := uint64(0); j < L; j++ {
 			x = M[i-1][index]
 			index++
@@ -386,7 +418,7 @@ func SubProductTree(a []ff.Fr) [][][]ff.Fr {
 
 // Fast multi-point evaluation using subproduct tree
 // For n^ directly use EvalPolyAt $n$ times
-func PolyMultiEvaluate(f []ff.Fr, M [][][]ff.Fr) []ff.Fr {
+func PolyMultiEvaluate(f []gmcl.Fr, M [][][]gmcl.Fr) []gmcl.Fr {
 	n := int64(len(f))
 	if n == 0 {
 		panic("PolyDifferentiate: Input is empty")
@@ -413,11 +445,11 @@ func PolyMultiEvaluate(f []ff.Fr, M [][][]ff.Fr) []ff.Fr {
 
 // Grossly assumes that it is a proper tree
 // Given a SubProduct tree, divides into 2 sub-product trees
-func splitSubProdTree(M [][][]ff.Fr) ([][][]ff.Fr, [][][]ff.Fr) {
+func splitSubProdTree(M [][][]gmcl.Fr) ([][][]gmcl.Fr, [][][]gmcl.Fr) {
 
 	k := len(M) - 1
-	L := make([][][]ff.Fr, k)
-	R := make([][][]ff.Fr, k)
+	L := make([][][]gmcl.Fr, k)
+	R := make([][][]gmcl.Fr, k)
 
 	for i := 0; i < k; i++ {
 		n := len(M[i])
@@ -427,4 +459,50 @@ func splitSubProdTree(M [][][]ff.Fr) ([][][]ff.Fr, [][][]ff.Fr) {
 
 	return L, R
 
+}
+
+// Computes product of polynomials.
+// let a = [poly1, poly2, poly3, poly4]
+// Returns \prod_{i=0}^{N-1}a_i
+// Need NOT be a power of two
+func PolyTreeVec(a [][]gmcl.Fr) []gmcl.Fr {
+
+	n := uint64(len(a))
+	aLen := n
+	n = nextPowOf2(n)
+
+	var padding [][]gmcl.Fr
+
+	padding = make([][]gmcl.Fr, n-aLen, n-aLen)
+	for i := range padding {
+		padding[i] = make([]gmcl.Fr, 1, 1)
+		padding[i][0].SetInt64(1)
+	}
+	a = append(a, padding...)
+
+	l := uint8(bits.Len64(n)) - 1
+
+	var M [][]gmcl.Fr
+
+	M = make([][]gmcl.Fr, n, n)
+	for j := uint64(0); j < n; j++ {
+		M[j] = make([]gmcl.Fr, len(a[j]))
+		copy(M[j], a[j])
+	}
+
+	var x []gmcl.Fr
+	var y []gmcl.Fr
+	for i := uint8(0); i < l; i++ {
+
+		L := uint64(1) << (l - i)
+
+		m := make([][]gmcl.Fr, L/2)
+		for j := uint64(0); j < L; j += 2 {
+			x = M[j]
+			y = M[j+1]
+			m[j/2] = PolyMul(x, y)
+		}
+		M = m
+	}
+	return PolyCondense(M[0])
 }

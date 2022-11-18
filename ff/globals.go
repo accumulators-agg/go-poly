@@ -1,12 +1,14 @@
 package ff
 
-var Scale2RootOfUnity []Fr
+import gmcl "github.com/alinush/go-mcl"
 
-var ZERO, ONE, TWO Fr
-var MODULUS_MINUS1, MODULUS_MINUS1_DIV2, MODULUS_MINUS2 Fr
-var INVERSE_TWO Fr
+var Scale2RootOfUnity []gmcl.Fr
 
-func ToFr(v string) (out Fr) {
+var ZERO, ONE, TWO gmcl.Fr
+var MODULUS_MINUS1, MODULUS_MINUS1_DIV2, MODULUS_MINUS2 gmcl.Fr
+var INVERSE_TWO gmcl.Fr
+
+func ToFr(v string) (out gmcl.Fr) {
 	SetFr(&out, v)
 	return
 }
@@ -16,7 +18,7 @@ func initGlobals() {
 	// MODULUS = 52435875175126190479447740508185965837690552500527637822603658699938581184513
 	// PRIMITIVE_ROOT = 5
 	// [pow(PRIMITIVE_ROOT, (MODULUS - 1) // (2**i), MODULUS) for i in range(32)]
-	Scale2RootOfUnity = []Fr{
+	Scale2RootOfUnity = []gmcl.Fr{
 		/* k=0          r=1          */ ToFr("1"),
 		/* k=1          r=2          */ ToFr("52435875175126190479447740508185965837690552500527637822603658699938581184512"),
 		/* k=2          r=4          */ ToFr("3465144826073652318776269530687742778270252468765361963008"),
@@ -51,39 +53,18 @@ func initGlobals() {
 		/* k=31         r=2147483648 */ ToFr("43599901455287962219281063402626541872197057165786841304067502694013639882090"),
 	}
 
-	AsFr(&ZERO, 0)
-	AsFr(&ONE, 1)
-	AsFr(&TWO, 2)
+	ZERO.SetInt64(int64(0))
+	ONE.SetInt64(int64(1))
+	TWO.SetInt64(int64(2))
 
-	SubModFr(&MODULUS_MINUS1, &ZERO, &ONE)
-	DivModFr(&MODULUS_MINUS1_DIV2, &MODULUS_MINUS1, &TWO)
-	SubModFr(&MODULUS_MINUS2, &ZERO, &TWO)
-	InvModFr(&INVERSE_TWO, &TWO)
+	gmcl.FrSub(&MODULUS_MINUS1, &ZERO, &ONE)
+	gmcl.FrDiv(&MODULUS_MINUS1_DIV2, &MODULUS_MINUS1, &TWO)
+	gmcl.FrSub(&MODULUS_MINUS2, &ZERO, &TWO)
+	gmcl.FrInv(&INVERSE_TWO, &TWO)
 }
 
 func IsPowerOfTwo(v uint64) bool {
 	return v&(v-1) == 0
-}
-
-func EvalPolyAtUnoptimized(dst *Fr, coeffs []Fr, x *Fr) {
-	if len(coeffs) == 0 {
-		CopyFr(dst, &ZERO)
-		return
-	}
-	if EqualZero(x) {
-		CopyFr(dst, &coeffs[0])
-		return
-	}
-	// Horner's method: work backwards, avoid doing more than N multiplications
-	// https://en.wikipedia.org/wiki/Horner%27s_method
-	var last Fr
-	CopyFr(&last, &coeffs[len(coeffs)-1])
-	var tmp Fr
-	for i := len(coeffs) - 2; i >= 0; i-- {
-		MulModFr(&tmp, &last, x)
-		AddModFr(&last, &tmp, &coeffs[i])
-	}
-	CopyFr(dst, &last)
 }
 
 func Max(x, y int) int {

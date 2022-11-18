@@ -1,4 +1,4 @@
-module github.com/sshravan/go-poly
+module github.com/accumulators-agg/go-poly
 
 go 1.16
 

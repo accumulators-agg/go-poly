@@ -3,13 +3,14 @@ package fft
 import (
 	"testing"
 
-	"github.com/sshravan/go-poly/debug"
-	"github.com/sshravan/go-poly/ff"
+	"github.com/accumulators-agg/go-poly/debug"
+	"github.com/accumulators-agg/go-poly/ff"
+	gmcl "github.com/alinush/go-mcl"
 )
 
 func TestFFTRoundtrip(t *testing.T) {
 	fs := NewFFTSettings(4)
-	data := make([]ff.Fr, fs.MaxWidth, fs.MaxWidth)
+	data := make([]gmcl.Fr, fs.MaxWidth, fs.MaxWidth)
 	for i := uint64(0); i < fs.MaxWidth; i++ {
 		ff.AsFr(&data[i], i)
 	}
@@ -22,7 +23,7 @@ func TestFFTRoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range res {
-		if got, expected := &res[i], &data[i]; !ff.EqualFr(got, expected) {
+		if got, expected := &res[i], &data[i]; !got.IsEqual(expected) {
 			t.Errorf("difference: %d: got: %s  expected: %s", i, ff.FrStr(got), ff.FrStr(expected))
 		}
 	}
@@ -32,7 +33,7 @@ func TestFFTRoundtrip(t *testing.T) {
 
 func TestInvFFT(t *testing.T) {
 	fs := NewFFTSettings(4)
-	data := make([]ff.Fr, fs.MaxWidth, fs.MaxWidth)
+	data := make([]gmcl.Fr, fs.MaxWidth, fs.MaxWidth)
 	for i := uint64(0); i < fs.MaxWidth; i++ {
 		ff.AsFr(&data[i], i)
 	}
@@ -42,11 +43,11 @@ func TestInvFFT(t *testing.T) {
 		t.Fatal(err)
 	}
 	debug.DebugFrs("result", res)
-	ToFr := func(v string) (out ff.Fr) {
+	ToFr := func(v string) (out gmcl.Fr) {
 		ff.SetFr(&out, v)
 		return
 	}
-	expected := []ff.Fr{
+	expected := []gmcl.Fr{
 		ToFr("26217937587563095239723870254092982918845276250263818911301829349969290592264"),
 		ToFr("40905488090558605688319636812215252217941835718478251840326926365086504505065"),
 		ToFr("10037948829646534413413739647971946522809495755620173630072972432081702959148"),
@@ -65,7 +66,7 @@ func TestInvFFT(t *testing.T) {
 		ToFr("11530387084567584791128103695970713619748716782049385982276732334852076679447"),
 	}
 	for i := range res {
-		if got := &res[i]; !ff.EqualFr(got, &expected[i]) {
+		if got := &res[i]; !got.IsEqual(&expected[i]) {
 			t.Errorf("difference: %d: got: %s  expected: %s", i, ff.FrStr(got), ff.FrStr(&expected[i]))
 		}
 	}

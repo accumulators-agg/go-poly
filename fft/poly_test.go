@@ -4,23 +4,24 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/sshravan/go-poly/debug"
-	"github.com/sshravan/go-poly/ff"
+	"github.com/accumulators-agg/go-poly/debug"
+	"github.com/accumulators-agg/go-poly/ff"
+	gmcl "github.com/alinush/go-mcl"
 )
 
-func CheckEqualVec(a []ff.Fr, b []ff.Fr) bool {
+func CheckEqualVec(a []gmcl.Fr, b []gmcl.Fr) bool {
 	n := len(a)
 	if n == len(b) && n > 0 {
 		flag := true
 		for i := 0; i < n; i++ {
-			flag = flag && ff.EqualFr(&a[i], &b[i])
+			flag = flag && a[i].IsEqual(&b[i])
 		}
 		return flag
 	}
 	return false
 }
 
-func printSubTree(M [][][]ff.Fr, printMsg string) {
+func printSubTree(M [][][]gmcl.Fr, printMsg string) {
 	for i := 0; i < len(M); i++ {
 		for j := 0; j < len(M[i]); j++ {
 			msg := fmt.Sprintf("%s [%d, %d]", printMsg, i, j)
@@ -338,7 +339,7 @@ func TestPolyExtGCD(t *testing.T) {
 			uFr := ff.FromInt64Vec(tt.u)
 			vFr := ff.FromInt64Vec(tt.v)
 
-			var g, u, v []ff.Fr
+			var g, u, v []gmcl.Fr
 			var flag bool
 			flag = true
 
@@ -398,11 +399,11 @@ func TestPolySubProdTree(t *testing.T) {
 		t.Run(testname, func(t *testing.T) {
 
 			aFr := ff.FromInt64Vec(tt.a)
-			var wantFr [][][]ff.Fr
+			var wantFr [][][]gmcl.Fr
 
-			wantFr = make([][][]ff.Fr, len(tt.want))
+			wantFr = make([][][]gmcl.Fr, len(tt.want))
 			for i := 0; i < len(wantFr); i++ {
-				wantFr[i] = make([][]ff.Fr, len(tt.want[i]))
+				wantFr[i] = make([][]gmcl.Fr, len(tt.want[i]))
 				for j := 0; j < len(tt.want[i]); j++ {
 					wantFr[i][j] = ff.FromInt64Vec(tt.want[i][j])
 				}
@@ -434,16 +435,16 @@ func TestPolySubProdTree(t *testing.T) {
 		testname := fmt.Sprintf("scale-%d", l)
 		t.Run(testname, func(t *testing.T) {
 			n := 1 << l
-			aFr := make([]ff.Fr, n, n)
+			aFr := make([]gmcl.Fr, n, n)
 			for i := 0; i < n; i++ {
 				aFr[i] = *ff.RandomFr()
 			}
-			var temp ff.Fr
-			result := []ff.Fr{ff.ONE}
-			tempPoly := make([]ff.Fr, 2)
+			var temp gmcl.Fr
+			result := []gmcl.Fr{ff.ONE}
+			tempPoly := make([]gmcl.Fr, 2)
 
 			for i := 0; i < n; i++ {
-				ff.NegModFr(&temp, &aFr[i])
+				gmcl.FrNeg(&temp, &aFr[i])
 				tempPoly[0] = temp
 				tempPoly[1] = ff.ONE
 				result = PolyMul(result, tempPoly)
@@ -499,13 +500,13 @@ func TestPolySplitSubProdTree(t *testing.T) {
 		t.Run(testname, func(t *testing.T) {
 
 			aFr := ff.FromInt64Vec(tt.a)
-			var wantLFr, wantRFr [][][]ff.Fr
+			var wantLFr, wantRFr [][][]gmcl.Fr
 
-			wantLFr = make([][][]ff.Fr, len(tt.wantL))
-			wantRFr = make([][][]ff.Fr, len(tt.wantR))
+			wantLFr = make([][][]gmcl.Fr, len(tt.wantL))
+			wantRFr = make([][][]gmcl.Fr, len(tt.wantR))
 			for i := 0; i < len(wantLFr); i++ {
-				wantLFr[i] = make([][]ff.Fr, len(tt.wantL[i]))
-				wantRFr[i] = make([][]ff.Fr, len(tt.wantR[i]))
+				wantLFr[i] = make([][]gmcl.Fr, len(tt.wantL[i]))
+				wantRFr[i] = make([][]gmcl.Fr, len(tt.wantR[i]))
 				for j := 0; j < len(tt.wantL[i]); j++ {
 					wantLFr[i][j] = ff.FromInt64Vec(tt.wantL[i][j])
 					wantRFr[i][j] = ff.FromInt64Vec(tt.wantR[i][j])
@@ -579,9 +580,9 @@ func TestPolyMultiPointEval(t *testing.T) {
 		t.Run(testname, func(t *testing.T) {
 			n := 1 << l
 
-			aFr := make([]ff.Fr, n-1, n-1) // Not n!
-			evalPointsFr := make([]ff.Fr, n, n)
-			evaluations := make([]ff.Fr, n, n)
+			aFr := make([]gmcl.Fr, n-1, n-1) // Not n!
+			evalPointsFr := make([]gmcl.Fr, n, n)
+			evaluations := make([]gmcl.Fr, n, n)
 
 			for i := 0; i < n; i++ {
 				if i < n-1 {
@@ -594,7 +595,7 @@ func TestPolyMultiPointEval(t *testing.T) {
 			M := SubProductTree(evalPointsFr)
 
 			for i := 0; i < n; i++ {
-				ff.EvalPolyAt(&evaluations[i], polynomialFr, &evalPointsFr[i])
+				gmcl.FrEvaluatePolynomial(&evaluations[i], polynomialFr, &evalPointsFr[i])
 			}
 			ansFr := PolyMultiEvaluate(polynomialFr, M)
 
@@ -603,5 +604,33 @@ func TestPolyMultiPointEval(t *testing.T) {
 				t.Errorf("PolyMultiPointEval 2: Answer did not match with expected.")
 			}
 		})
+	}
+}
+
+func TestPolyTreeVec(t *testing.T) {
+
+	aLen := uint64(25)
+	aFr := make([]gmcl.Fr, aLen)
+	for i := uint64(0); i < aLen; i++ {
+		aFr[i].Random()
+	}
+	N := nextPowOf2(uint64(aLen))
+	M := make([][]gmcl.Fr, N)
+	for j := uint64(0); j < N; j++ {
+		if j < aLen {
+			M[j] = make([]gmcl.Fr, 2)
+			gmcl.FrNeg(&M[j][0], &aFr[j])
+			M[j][1].SetInt64(1)
+		} else {
+			M[j] = make([]gmcl.Fr, 1)
+			M[j][0].SetInt64(1)
+		}
+	}
+
+	m := PolyTree(aFr)
+	result := PolyTreeVec(M)
+	flag := CheckEqualVec(result, m)
+	if flag == false {
+		t.Errorf("PolyTreeVec: Answer did not match with expected.")
 	}
 }

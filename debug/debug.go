@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sshravan/go-poly/ff"
+	"github.com/accumulators-agg/go-poly/ff"
+	gmcl "github.com/alinush/go-mcl"
 )
 
-func DebugFrPtrs(msg string, values []*ff.Fr) {
+func DebugFrPtrs(msg string, values []*gmcl.Fr) {
 	var out strings.Builder
 	out.WriteString("---")
 	out.WriteString(msg)
@@ -18,7 +19,7 @@ func DebugFrPtrs(msg string, values []*ff.Fr) {
 	fmt.Println(out.String())
 }
 
-func DebugFrs(msg string, values []ff.Fr) {
+func DebugFrs(msg string, values []gmcl.Fr) {
 	fmt.Println("---------------------------")
 	var out strings.Builder
 	for i := range values {
